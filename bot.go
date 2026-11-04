@@ -9,10 +9,7 @@ import (
 )
 
 func main() {
-	err := godotenv.Load()
-	if err != nil {
-		log.Fatal("Ошибка загрузки .env:", err)
-	}
+	_ = godotenv.Load()
 
 	token := os.Getenv("TELEGRAM_APITOKEN")
 
