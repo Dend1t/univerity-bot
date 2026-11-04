@@ -1,7 +1,9 @@
+
 package main
 
 import (
 	"log"
+	"net/http"
 	"os"
 
 	tgbotapi "github.com/go-telegram-bot-api/telegram-bot-api/v5"
@@ -11,20 +13,35 @@ import (
 func main() {
 	_ = godotenv.Load()
 
+	port := os.Getenv("PORT")
+	if port == "" {
+		port = "10000"
+	}
+
+	http.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(http.StatusOK)
+		w.Write([]byte("Univerity Bot работает!"))
+	})
+
+	go func() {
+		log.Println("HTTP сервер запущен на порту", port)
+		if err := http.ListenAndServe(":"+port, nil); err != nil {
+			log.Fatal("Ошибка HTTP сервера:", err)
+		}
+	}()
+
 	token := os.Getenv("TELEGRAM_APITOKEN")
 
 	if token == "" {
 		log.Fatal("Токен пустой!")
 	}
 
-	log.Println("Токен загружен, длина:", len(token))
-
 	bot, err := tgbotapi.NewBotAPI(token)
 	if err != nil {
 		log.Fatal("Ошибка Telegram API:", err)
 	}
 
-	bot.Debug = true
+	bot.Debug = false
 
 	log.Printf("Бот авторизован: %s", bot.Self.UserName)
 
@@ -47,8 +64,10 @@ func main() {
 		switch update.Message.Command() {
 		case "start":
 			msg.Text = "Привет! Я Univerity Bot!"
+
 		case "help":
 			msg.Text = "Доступные команды:\n/start - Запустить бота\n/help - Помощь"
+
 		default:
 			msg.Text = "Неизвестная команда. Используй /help"
 		}
