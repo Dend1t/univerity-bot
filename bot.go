@@ -50,6 +50,9 @@ func main() {
 	updates := bot.GetUpdatesChan(u)
 
 	const (
+		/*
+			ВЕРИТИ С МАЙНРКАФТА ЕМУ МЕСТО В БЕКРУМС!!!
+		*/
 		botStart   = "🚀 Старт"
 		botHelp    = "❓ Помощь"
 		botWriteHW = "✏️ Записать"
