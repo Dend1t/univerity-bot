@@ -90,14 +90,14 @@ func main() {
 			}
 		}
 
-		if action == cmdStart {
+		switch action {
+		case cmdStart:
 			msg.Text = MsgStart
-		} else if action == cmdHelp {
+		case cmdHelp:
 			msg.Text = MsgHelp
-		} else {
+		default:
 			msg.Text = "Неизвестная команда. Используй /help"
 		}
-
 		if _, err := bot.Send(msg); err != nil {
 			log.Println("Ошибка отправки:", err)
 		}
