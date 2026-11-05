@@ -1,4 +1,3 @@
-
 package main
 
 import (
@@ -50,25 +49,52 @@ func main() {
 
 	updates := bot.GetUpdatesChan(u)
 
+	const (
+		botStart = "🚀 Старт"
+		botHelp  = "❓ Помощь"
+
+		cmdStart = "/start"
+		cmdHelp  = "/help"
+
+		MsgStart = "Привет! Я UniverityBot! 🎓"
+		MsgHelp  = "Доступные команды:\\n/start - Запустить бота\\n/help - Помощ"
+	)
+
+	keyboard := tgbotapi.NewReplyKeyboard(
+		tgbotapi.NewKeyboardButtonRow(
+			tgbotapi.NewKeyboardButton(botStart),
+			tgbotapi.NewKeyboardButton(botHelp),
+		),
+	)
+	keyboard.ResizeKeyboard = true
+
 	for update := range updates {
 		if update.Message == nil {
 			continue
 		}
 
-		if !update.Message.IsCommand() {
-			continue
+		msg := tgbotapi.NewMessage(update.Message.Chat.ID, "")
+		msg.ReplyMarkup = keyboard
+
+		var action string
+		if update.Message.IsCommand() {
+			action = update.Message.Command()
+		} else {
+			switch update.Message.Text {
+			case botStart:
+				action = cmdStart
+			case botHelp:
+				action = cmdHelp
+			default:
+				continue
+			}
 		}
 
-		msg := tgbotapi.NewMessage(update.Message.Chat.ID, "")
-
-		switch update.Message.Command() {
-		case "start":
-			msg.Text = "Привет! Я Univerity Bot!"
-
-		case "help":
-			msg.Text = "Доступные команды:\n/start - Запустить бота\n/help - Помощь"
-
-		default:
+		if action == cmdStart {
+			msg.Text = MsgStart
+		} else if action == cmdHelp {
+			msg.Text = MsgHelp
+		} else {
 			msg.Text = "Неизвестная команда. Используй /help"
 		}
 
