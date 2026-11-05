@@ -57,7 +57,7 @@ func main() {
 		cmdHelp  = "/help"
 
 		MsgStart = "Привет! Я UniverityBot! 🎓"
-		MsgHelp  = "Доступные команды:\\n/start - Запустить бота\\n/help - Помощ"
+		MsgHelp  = "Доступные команды: /start - Запустить бота; /help - Помощь"
 	)
 
 	keyboard := tgbotapi.NewReplyKeyboard(
