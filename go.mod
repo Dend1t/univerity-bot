@@ -1,5 +1,5 @@
 module univeritybot
-
+//new api
 go 1.23
 
 require (

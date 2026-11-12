@@ -27,6 +27,22 @@ func recoverMW(next bot.HandlerFunc) bot.HandlerFunc {
 	}
 }
 
+func privateOnly(next bot.HandlerFunc) bot.HandlerFunc {
+	return func(ctx context.Context, b *bot.Bot, u *models.Update) {
+		chat := u.EffectiveChat()
+		if chat != nil && chat.Type != "private" {
+			if u.Message != nil {
+				_, _ = b.SendMessage(ctx, &bot.SendMessageParams{
+					ChatID: chat.ID,
+					Text:   "🔒 Я работаю только в личных сообщениях.",
+				})
+			}
+			return
+		}
+		next(ctx, b, u)
+	}
+}
+
 func logMW(next bot.HandlerFunc) bot.HandlerFunc {
 	return func(ctx context.Context, b *bot.Bot, u *models.Update) {
 		start := time.Now()
@@ -64,7 +80,9 @@ func startHealthServer(ctx context.Context, port string) {
 }
 
 func main() {
-	_ = godotenv.Load()
+	if err := godotenv.Load(); err != nil {
+		log.Println(".env не найден, читаю переменные окружения")
+	}
 
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 	defer stop()
@@ -76,15 +94,15 @@ func main() {
 
 	startHealthServer(ctx, envOr("PORT", "10000"))
 
-	a := newApp(LoadStore(envOr("DATA_FILE", "data.json")))
+	a := newApp(LoadStore(os.Getenv("DATA_FILE")))
 
 	b, err := bot.New(token,
 		bot.WithDefaultHandler(a.fallback),
-		bot.WithMiddlewares(recoverMW, logMW),
+		bot.WithMiddlewares(recoverMW, privateOnly, logMW),
 		bot.WithErrorsHandler(func(err error) { log.Printf("[TGBOT] %v", err) }),
 		bot.WithCheckInitTimeout(10*time.Second),
 		bot.WithWorkers(1),
-		bot.WithNotAsyncHandlers(), // последовательно: FSM без гонок
+		bot.WithNotAsyncHandlers(),
 	)
 	if err != nil {
 		log.Fatal("Ошибка Telegram API:", err)
@@ -98,52 +116,50 @@ func main() {
 
 	if _, err := b.SetMyCommands(ctx, &bot.SetMyCommandsParams{
 		Commands: []models.BotCommand{
-			{Command: "start", Description: "Регистрация / главное меню"},
+			{Command: "start", Description: "Регистрация / меню"},
 			{Command: "help", Description: "Помощь"},
-			{Command: "hw", Description: "Домашние задания (студент)"},
-			{Command: "new", Description: "Создать ДЗ (преподаватель)"},
-			{Command: "list", Description: "Мои ДЗ (преподаватель)"},
+			{Command: "hw", Description: "Домашние задания"},
+			{Command: "new", Description: "Создать ДЗ"},
+			{Command: "list", Description: "Мои ДЗ и сдача"},
+			{Command: "stats", Description: "Статистика"},
 			{Command: "profile", Description: "Профиль"},
-			{Command: "cancel", Description: "Отменить текущий шаг"},
+			{Command: "cancel", Description: "Отменить шаг"},
 			{Command: "logout", Description: "Выйти"},
 		},
 	}); err != nil {
 		log.Printf("setMyCommands: %v", err)
 	}
 
-	// 1) Активная сессия перехватывает ввод раньше остальных.
 	b.RegisterHandlerMatchFunc(a.matchSession, a.onStep)
 
-	// 2) Команды (с поддержкой /cmd@botname).
 	for _, r := range []struct {
 		cmd string
 		h   bot.HandlerFunc
 	}{
 		{"start", a.onStart}, {"help", a.onHelp}, {"cancel", a.onCancel},
 		{"new", a.onNewHW}, {"list", a.onMyHW}, {"hw", a.onStudentHW},
-		{"profile", a.onProfile}, {"logout", a.onLogout},
+		{"stats", a.onStats}, {"profile", a.onProfile}, {"logout", a.onLogout},
 	} {
 		b.RegisterHandlerMatchFunc(matchCommand(r.cmd), r.h)
 	}
 
-	// 3) Кнопки клавиатуры.
 	for _, r := range []struct {
 		text string
 		h    bot.HandlerFunc
 	}{
 		{btnNewHW, a.onNewHW}, {btnMyHW, a.onMyHW}, {btnHW, a.onStudentHW},
-		{btnProfile, a.onProfile}, {btnHelp, a.onHelp}, {btnLogout, a.onLogout},
+		{btnStats, a.onStats}, {btnProfile, a.onProfile}, {btnHelp, a.onHelp}, {btnLogout, a.onLogout},
 	} {
 		b.RegisterHandler(bot.HandlerTypeMessageText, r.text, bot.MatchTypeExact, r.h)
 	}
 
-	// 4) Inline-кнопки.
 	b.RegisterHandler(bot.HandlerTypeCallbackQueryData, "role:", bot.MatchTypePrefix, a.onRole)
+	b.RegisterHandler(bot.HandlerTypeCallbackQueryData, "prog:", bot.MatchTypePrefix, a.onProgram)
+	b.RegisterHandler(bot.HandlerTypeCallbackQueryData, "subj:", bot.MatchTypePrefix, a.onSubject)
 	b.RegisterHandler(bot.HandlerTypeCallbackQueryData, "aud:", bot.MatchTypePrefix, a.onAudience)
 	b.RegisterHandler(bot.HandlerTypeCallbackQueryData, "hw:", bot.MatchTypePrefix, a.onHWAction)
 
-	// 5) Kliки внутри HTML-виджета (Bot API 10.4).
-	b.RegisterHandler(bot.HandlerTypeWidgetQueryData, "d:", bot.MatchTypePrefix, a.onWidgetDone)
+	b.RegisterHandlerMatchFunc(a.matchWidget, a.onWidget)
 
 	log.Println("Бот запущен, long polling…")
 	b.Start(ctx)
