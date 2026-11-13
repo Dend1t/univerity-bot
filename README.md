@@ -8,4 +8,4 @@
 
 **Библиотеки бекенда**
 
-* https://go-telegram-bot-api.dev/
+* https://github.com/go-telegram/bot
